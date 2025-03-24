@@ -1,0 +1,201 @@
+.gst-details {
+  margin-top: 15px;
+  border-top: 1px dashed var(--border-color);
+  padding-top: 15px;
+}
+
+.gst-toggle-btn {
+  background: transparent;
+  color: var(--primary-color);
+  border: 1px solid var(--border-color);
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  border-radius: 4px;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  box-shadow: none;
+}
+
+.gst-toggle-btn:hover {
+  background: rgba(76, 175, 80, 0.1);
+  transform: none;
+  box-shadow: none;
+}
+
+.gst-breakdown {
+  margin-top: 15px;
+  background-color: var(--accent-bg);
+  padding: 15px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.gst-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: var(--text-secondary);
+}
+
+.gst-category, .gst-rate {
+  margin: 0;
+  padding: 0;
+}
+
+.gst-calculation {
+  background-color: var(--card-bg);
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.gst-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.gst-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.gst-amount {
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.gst-highlight {
+  color: var(--primary-color);
+}
+
+.gst-divider {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 8px 0;
+}
+
+.gst-total {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.gst-note {
+  font-size: 0.8rem;
+  color: var(--text-light);
+  font-style: italic;
+}
+
+.gst-value {
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+/* In transaction list */
+.transaction-gst {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-top: 5px;
+}
+
+.transaction-gst-tag {
+  background-color: var(--accent-bg);
+  color: var(--accent-color);
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-left: 5px;
+}
+
+.gst-details-container {
+  margin: 15px 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-border-radius);
+  overflow: hidden;
+}
+
+.gst-toggle-button {
+  width: 100%;
+  background-color: var(--accent-bg);
+  color: var(--accent-color);
+  border: none;
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.gst-toggle-button:hover {
+  background-color: rgba(76, 175, 80, 0.15);
+}
+
+.toggle-icon {
+  font-size: 0.8rem;
+  margin-left: 8px;
+}
+
+.gst-breakdown {
+  padding: 15px;
+  background-color: var(--card-bg);
+}
+
+.gst-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 0.95rem;
+}
+
+.gst-row.total {
+  margin-top: 15px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-color);
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--primary-color);
+}
+
+.gst-label {
+  color: var(--text-secondary);
+}
+
+.gst-value {
+  font-weight: 500;
+}
+
+.gst-info {
+  margin-top: 15px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.gst-info p {
+  margin-bottom: 8px;
+}
+
+.gst-info ul {
+  padding-left: 20px;
+  margin: 0;
+}
+
+.gst-info li {
+  margin-bottom: 4px;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .gst-toggle-button {
+  background-color: var(--accent-bg);
+  color: var(--accent-color);
+}
+
+[data-theme="dark"] .gst-toggle-button:hover {
+  background-color: rgba(92, 188, 96, 0.15);
+}
