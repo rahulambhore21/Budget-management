@@ -144,25 +144,15 @@ const AnnualReportPDF = ({ transactions, year, onGenerateStart, onGenerateComple
     if (onGenerateStart) onGenerateStart();
     
     try {
-      // Use setTimeout to allow the UI to update before starting the heavy PDF generation
-      setTimeout(() => {
-        try {
-          // Generate the report
-          const doc = downloadAnnualReport(transactions, year);
-          
-          if (onGenerateComplete) onGenerateComplete(doc);
-          toast.success(`Annual report for ${year} has been downloaded`);
-        } catch (error) {
-          console.error('Error generating annual report:', error);
-          toast.error('Failed to generate annual report');
-        } finally {
-          setGenerating(false);
-        }
-      }, 100);
+      // Generate the report directly without setTimeout
+      const doc = downloadAnnualReport(transactions, year);
+      toast.success(`Annual report for ${year} has been downloaded`);
     } catch (error) {
-      console.error('Error preparing report generation:', error);
-      toast.error('Failed to start report generation');
+      console.error('Error generating annual report:', error);
+      toast.error(`Failed to generate report: ${error.message || 'Unknown error'}`);
+    } finally {
       setGenerating(false);
+      if (onGenerateComplete) onGenerateComplete();
     }
   };
   

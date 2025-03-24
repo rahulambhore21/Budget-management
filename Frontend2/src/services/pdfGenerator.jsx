@@ -1,6 +1,5 @@
-import { getTransactions } from './transaction';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 
 // Helper to group transactions by date
@@ -111,6 +110,165 @@ const formatCurrency = (amount) => {
   }).format(amount);
 };
 
+// Format date for PDF
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-IN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+};
+
+// Group transactions by category
+const groupByCategory = (transactions) => {
+  return transactions.reduce((acc, transaction) => {
+    const category = transaction.category;
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(transaction);
+    return acc;
+  }, {});
+};
+
+// Group transactions by month
+const groupByMonth = (transactions) => {
+  return transactions.reduce((acc, transaction) => {
+    const date = new Date(transaction.date);
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    
+    if (!acc[monthKey]) {
+      acc[monthKey] = [];
+    }
+    
+    acc[monthKey].push(transaction);
+    return acc;
+  }, {});
+};
+
+// Generate and download an annual report
+export const downloadAnnualReport = (transactions, year) => {
+  // Create new PDF document
+  const doc = new jsPDF();
+  
+  // Filter transactions for the selected year
+  const yearTransactions = transactions.filter(tx => {
+    const txDate = new Date(tx.date);
+    return txDate.getFullYear() === parseInt(year);
+  });
+  
+  // Group transactions by month and category
+  const transactionsByMonth = groupByMonth(yearTransactions);
+  const transactionsByCategory = groupByCategory(yearTransactions);
+  
+  // Add title
+  doc.setFontSize(22);
+  doc.setTextColor(76, 175, 80); // Green color
+  doc.text(`Annual Expense Report - ${year}`, 105, 20, { align: 'center' });
+  
+  // Add subtitle
+  doc.setFontSize(12);
+  doc.setTextColor(100, 100, 100); // Gray color
+  doc.text(`Generated on ${formatDate(new Date())}`, 105, 30, { align: 'center' });
+  
+  // Add summary section
+  doc.setFontSize(16);
+  doc.setTextColor(0, 0, 0);
+  doc.text('Annual Summary', 14, 45);
+  
+  // Calculate total expense
+  const totalExpense = yearTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+  
+  // Summary table
+  autoTable(doc, {
+    startY: 50,
+    head: [['Category', 'Amount', 'Percentage']],
+    body: Object.entries(transactionsByCategory).map(([category, txs]) => {
+      const categoryTotal = txs.reduce((sum, tx) => sum + tx.amount, 0);
+      const percentage = ((categoryTotal / totalExpense) * 100).toFixed(1);
+      return [
+        category,
+        formatCurrency(categoryTotal),
+        `${percentage}%`
+      ];
+    }),
+    theme: 'grid',
+    headStyles: { fillColor: [76, 175, 80] }
+  });
+  
+  // Get position after first table
+  let currentY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : 120;
+  
+  // Monthly breakdown section
+  doc.text('Monthly Breakdown', 14, currentY);
+  currentY += 10;
+  
+  // Monthly expense table
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  
+  const monthlyData = months.map(month => {
+    const monthIndex = months.indexOf(month);
+    const monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+    const monthTxs = transactionsByMonth[monthKey] || [];
+    const monthTotal = monthTxs.reduce((sum, tx) => sum + tx.amount, 0);
+    return [month, formatCurrency(monthTotal)];
+  });
+  
+  autoTable(doc, {
+    startY: currentY,
+    head: [['Month', 'Total Expense']],
+    body: monthlyData,
+    theme: 'grid',
+    headStyles: { fillColor: [76, 175, 80] }
+  });
+  
+  // Get position after second table
+  currentY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : currentY + 100;
+  
+  // Top expenses section
+  doc.text('Top Expenses', 14, currentY);
+  currentY += 10;
+  
+  // Sort transactions by amount
+  const topTransactions = [...yearTransactions].sort((a, b) => b.amount - a.amount).slice(0, 10);
+  
+  autoTable(doc, {
+    startY: currentY,
+    head: [['Date', 'Category', 'Description', 'Amount']],
+    body: topTransactions.map(tx => [
+      formatDate(tx.date),
+      tx.category,
+      tx.description || 'No description',
+      formatCurrency(tx.amount)
+    ]),
+    theme: 'grid',
+    headStyles: { fillColor: [76, 175, 80] }
+  });
+  
+  // Add footer
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(10);
+    doc.setTextColor(150, 150, 150);
+    doc.text(
+      `RupeeRakshak - Page ${i} of ${pageCount}`,
+      105,
+      doc.internal.pageSize.height - 10,
+      { align: 'center' }
+    );
+  }
+  
+  // Save the PDF
+  doc.save(`Annual_Report_${year}.pdf`);
+  
+  return doc;
+};
+
 // Generate monthly expense report
 export const generateMonthlyReport = (transactions, month, year) => {
   const doc = new jsPDF();
@@ -160,7 +318,7 @@ export const generateMonthlyReport = (transactions, month, year) => {
     `${((amount / totalExpense) * 100).toFixed(1)}%`
   ]);
   
-  doc.autoTable({
+  autoTable(doc, {
     startY: 88,
     head: [['Category', 'Amount', 'Percentage']],
     body: categoryData,
@@ -188,7 +346,7 @@ export const generateMonthlyReport = (transactions, month, year) => {
     formatCurrency(tx.amount)
   ]);
   
-  doc.autoTable({
+  autoTable(doc, {
     startY: doc.lastAutoTable.finalY + 26,
     head: [['Date', 'Category', 'Description', 'Payment Mode', 'Amount']],
     body: transactionData,
@@ -197,135 +355,6 @@ export const generateMonthlyReport = (transactions, month, year) => {
       fillColor: [76, 175, 80],
       textColor: [255, 255, 255],
       fontStyle: 'bold'
-    }
-  });
-  
-  // Add footer
-  const pageCount = doc.internal.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(10);
-    doc.setTextColor(150, 150, 150);
-    doc.text(
-      'RupeeRakshak - Confidential Financial Report',
-      105,
-      doc.internal.pageSize.height - 10,
-      { align: 'center' }
-    );
-    doc.text(
-      `Page ${i} of ${pageCount}`,
-      doc.internal.pageSize.width - 20,
-      doc.internal.pageSize.height - 10
-    );
-  }
-  
-  return doc;
-};
-
-// Generate annual expense report
-export const generateAnnualReport = (transactions, year) => {
-  const doc = new jsPDF();
-  const title = `Annual Expense Report - ${year}`;
-  
-  // Add header
-  doc.setFontSize(18);
-  doc.setTextColor(76, 175, 80); // Primary color
-  doc.text(title, 105, 20, { align: 'center' });
-  
-  doc.setFontSize(12);
-  doc.setTextColor(102, 102, 102);
-  doc.text('RupeeRakshak - Your Financial Assistant', 105, 30, { align: 'center' });
-  doc.text(`Generated on: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 105, 38, { align: 'center' });
-  
-  // Filter transactions for the selected year
-  const filteredTransactions = transactions.filter(tx => {
-    const txDate = new Date(tx.date);
-    return txDate.getFullYear() === year;
-  });
-  
-  // Calculate summary data
-  const totalExpense = filteredTransactions.reduce((sum, tx) => sum + tx.amount, 0);
-  
-  // Calculate monthly breakdown
-  const monthlyData = {};
-  filteredTransactions.forEach(tx => {
-    const month = new Date(tx.date).getMonth();
-    monthlyData[month] = (monthlyData[month] || 0) + tx.amount;
-  });
-  
-  // Calculate category breakdown
-  const categoryTotals = filteredTransactions.reduce((acc, tx) => {
-    acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
-    return acc;
-  }, {});
-  
-  // Add summary section
-  doc.setFontSize(14);
-  doc.setTextColor(76, 175, 80);
-  doc.text('Annual Summary', 14, 50);
-  
-  doc.setFontSize(12);
-  doc.setTextColor(0, 0, 0);
-  doc.text(`Total Annual Expenses: ${formatCurrency(totalExpense)}`, 14, 60);
-  doc.text(`Total Transactions: ${filteredTransactions.length}`, 14, 68);
-  doc.text(`Average Monthly Expense: ${formatCurrency(totalExpense / 12)}`, 14, 76);
-  
-  // Add monthly breakdown
-  doc.setFontSize(14);
-  doc.setTextColor(76, 175, 80);
-  doc.text('Monthly Breakdown', 14, 90);
-  
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-  
-  const monthlyTableData = monthNames.map((name, index) => [
-    name,
-    formatCurrency(monthlyData[index] || 0),
-    `${((monthlyData[index] || 0) / totalExpense * 100).toFixed(1)}%`
-  ]);
-  
-  doc.autoTable({
-    startY: 96,
-    head: [['Month', 'Expenses', 'Percentage']],
-    body: monthlyTableData,
-    theme: 'grid',
-    headStyles: {
-      fillColor: [76, 175, 80],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold'
-    },
-    alternateRowStyles: {
-      fillColor: [240, 240, 240]
-    }
-  });
-  
-  // Add category breakdown
-  doc.setFontSize(14);
-  doc.setTextColor(76, 175, 80);
-  doc.text('Category Breakdown', 14, doc.lastAutoTable.finalY + 20);
-  
-  const categoryData = Object.entries(categoryTotals)
-    .sort((a, b) => b[1] - a[1]) // Sort by amount (descending)
-    .map(([category, amount]) => [
-      category,
-      formatCurrency(amount),
-      `${((amount / totalExpense) * 100).toFixed(1)}%`
-    ]);
-  
-  doc.autoTable({
-    startY: doc.lastAutoTable.finalY + 26,
-    head: [['Category', 'Amount', 'Percentage']],
-    body: categoryData,
-    theme: 'grid',
-    headStyles: {
-      fillColor: [76, 175, 80],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold'
-    },
-    alternateRowStyles: {
-      fillColor: [240, 240, 240]
     }
   });
   
@@ -363,47 +392,6 @@ export const downloadMonthlyReport = (transactions, month, year) => {
   const doc = generateMonthlyReport(transactions, month, year);
   const monthName = format(new Date(year, month, 1), 'MMMM');
   return savePdf(doc, 'Monthly', `${monthName}_${year}`);
-};
-
-// Generate and download an annual report
-export const downloadAnnualReport = (transactions, year) => {
-  const doc = generateAnnualReport(transactions, year);
-  return savePdf(doc, 'Annual', year);
-};
-
-// Format date for PDF
-const formatDate = (dateString) => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-IN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-};
-
-// Group transactions by category
-const groupByCategory = (transactions) => {
-  return transactions.reduce((acc, transaction) => {
-    const category = transaction.category;
-    if (!acc[category]) {
-      acc[category] = [];
-    }
-    acc[category].push(transaction);
-    return acc;
-  }, {});
-};
-
-// Group transactions by month
-const groupByMonth = (transactions) => {
-  return transactions.reduce((acc, transaction) => {
-    const date = new Date(transaction.date);
-    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    if (!acc[monthKey]) {
-      acc[monthKey] = [];
-    }
-    acc[monthKey].push(transaction);
-    return acc;
-  }, {});
 };
 
 // Download monthly statement as PDF
@@ -447,7 +435,7 @@ export const downloadMonthlyStatement = (transactions, month, year) => {
     ];
   });
   
-  doc.autoTable({
+  autoTable(doc, {
     startY: 70,
     head: [['Category', 'Amount', 'Percentage']],
     body: categoryBreakdownData,
@@ -466,7 +454,7 @@ export const downloadMonthlyStatement = (transactions, month, year) => {
     formatCurrency(tx.amount)
   ]);
   
-  doc.autoTable({
+  autoTable(doc, {
     startY: yPos + 5,
     head: [['Date', 'Category', 'Description', 'Payment Mode', 'Amount']],
     body: transactionData,
@@ -536,7 +524,7 @@ export const downloadCustomReport = (transactions, startDate, endDate, title = '
     ];
   });
   
-  doc.autoTable({
+  autoTable(doc, {
     startY: 70,
     head: [['Category', 'Amount', 'Percentage']],
     body: categoryData,
@@ -555,7 +543,7 @@ export const downloadCustomReport = (transactions, startDate, endDate, title = '
     formatCurrency(tx.amount)
   ]);
   
-  doc.autoTable({
+  autoTable(doc, {
     startY: yPos + 5,
     head: [['Date', 'Category', 'Description', 'Payment Mode', 'Amount']],
     body: transactionData,
