@@ -12,26 +12,22 @@ export const isOnline = () => {
 // Save a transaction to local storage when offline
 export const saveOfflineTransaction = (transaction) => {
   try {
-    // Get existing offline transactions
-    const existingTransactions = JSON.parse(localStorage.getItem(OFFLINE_TRANSACTIONS_KEY) || '[]');
+    let offlineTransactions = JSON.parse(localStorage.getItem(OFFLINE_TRANSACTIONS_KEY) || '[]');
     
-    // Add transaction with a temporary ID and timestamp
-    const offlineTransaction = {
+    // Add a temporary ID and timestamp
+    const tempTransaction = {
       ...transaction,
-      tempId: Date.now().toString(),
+      _id: `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       createdAt: new Date().toISOString(),
-      synced: false
+      isOffline: true
     };
     
-    // Save to local storage
-    localStorage.setItem(
-      OFFLINE_TRANSACTIONS_KEY, 
-      JSON.stringify([...existingTransactions, offlineTransaction])
-    );
+    offlineTransactions.push(tempTransaction);
+    localStorage.setItem(OFFLINE_TRANSACTIONS_KEY, JSON.stringify(offlineTransactions));
     
-    return offlineTransaction;
+    return tempTransaction;
   } catch (error) {
-    console.error('Failed to save transaction offline:', error);
+    console.error('Error saving offline transaction:', error);
     throw new Error('Failed to save transaction offline');
   }
 };
@@ -41,17 +37,25 @@ export const getOfflineTransactions = () => {
   try {
     return JSON.parse(localStorage.getItem(OFFLINE_TRANSACTIONS_KEY) || '[]');
   } catch (error) {
-    console.error('Failed to get offline transactions:', error);
+    console.error('Error getting offline transactions:', error);
     return [];
   }
 };
 
+// Clear offline transactions
+export const clearOfflineTransactions = () => {
+  localStorage.removeItem(OFFLINE_TRANSACTIONS_KEY);
+};
+
 // Sync offline transactions when back online
 export const syncOfflineTransactions = async (onSuccess) => {
-  const offlineTransactions = getOfflineTransactions();
+  if (!isOnline()) {
+    return { synced: 0 };
+  }
   
+  const offlineTransactions = getOfflineTransactions();
   if (offlineTransactions.length === 0) {
-    return { success: true, synced: 0 };
+    return { synced: 0 };
   }
   
   let syncedCount = 0;
@@ -60,11 +64,14 @@ export const syncOfflineTransactions = async (onSuccess) => {
   // Process each transaction
   for (const transaction of offlineTransactions) {
     try {
-      // Submit to server
-      await addTransaction(transaction);
+      // Remove offline-specific properties
+      const { _id, createdAt, isOffline, ...transactionData } = transaction;
+      
+      // Submit transaction
+      await addTransaction(transactionData);
       syncedCount++;
     } catch (error) {
-      console.error('Failed to sync transaction:', error);
+      console.error('Error syncing transaction:', error);
       failedTransactions.push({
         transaction,
         error: error.message || 'Unknown error'
@@ -109,9 +116,4 @@ export const setupOfflineSyncListener = () => {
       toast.error('Failed to sync offline transactions');
     }
   });
-};
-
-// Clear all offline transactions (for testing)
-export const clearOfflineTransactions = () => {
-  localStorage.removeItem(OFFLINE_TRANSACTIONS_KEY);
 };

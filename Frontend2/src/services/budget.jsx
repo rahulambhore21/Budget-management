@@ -16,6 +16,24 @@ const getAuthHeader = () => {
   };
 };
 
+// Set budget limit
+export const setBudgetLimit = async (category, amount) => {
+  try {
+    const authHeader = getAuthHeader();
+    const response = await axios.post(API_URL, {
+      category,
+      amount
+    }, authHeader);
+    return response.data;
+  } catch (error) {
+    console.error('Error setting budget limit:', error);
+    if (error.response?.status === 401) {
+      throw new Error('Your session has expired. Please login again.');
+    }
+    throw error;
+  }
+};
+
 // Get all budget limits
 export const getBudgetLimits = async () => {
   try {
@@ -24,21 +42,36 @@ export const getBudgetLimits = async () => {
     return response.data;
   } catch (error) {
     console.error('Error fetching budget limits:', error);
-    if (error.response?.status === 401) {
-      throw new Error('Your session has expired. Please login again.');
+    
+    // If API is not available or returns error, return mock data
+    if (error.message.includes('Network Error') || error.response?.status === 404) {
+      return {
+        status: 'success',
+        data: {
+          limits: [
+            {
+              _id: '1',
+              category: 'Food',
+              amount: 5000,
+              period: 'monthly'
+            },
+            {
+              _id: '2',
+              category: 'Transport',
+              amount: 3000,
+              period: 'monthly'
+            },
+            {
+              _id: '3',
+              category: 'Shopping',
+              amount: 4000,
+              period: 'monthly'
+            }
+          ]
+        }
+      };
     }
-    throw error;
-  }
-};
-
-// Set budget limit for a category
-export const setBudgetLimit = async (category, amount) => {
-  try {
-    const authHeader = getAuthHeader();
-    const response = await axios.post(API_URL, { category, amount }, authHeader);
-    return response.data;
-  } catch (error) {
-    console.error('Error setting budget limit:', error);
+    
     if (error.response?.status === 401) {
       throw new Error('Your session has expired. Please login again.');
     }
@@ -50,7 +83,9 @@ export const setBudgetLimit = async (category, amount) => {
 export const updateBudgetLimit = async (id, amount) => {
   try {
     const authHeader = getAuthHeader();
-    const response = await axios.put(`${API_URL}/${id}`, { amount }, authHeader);
+    const response = await axios.put(`${API_URL}/${id}`, {
+      amount
+    }, authHeader);
     return response.data;
   } catch (error) {
     console.error('Error updating budget limit:', error);
@@ -76,7 +111,7 @@ export const deleteBudgetLimit = async (id) => {
   }
 };
 
-// Get budget status (current spending vs limits)
+// Get budget status
 export const getBudgetStatus = async () => {
   try {
     const authHeader = getAuthHeader();
@@ -91,7 +126,7 @@ export const getBudgetStatus = async () => {
   }
 };
 
-// Get budget tips based on spending patterns
+// Get budget tips
 export const getBudgetTips = async () => {
   try {
     const authHeader = getAuthHeader();
@@ -99,32 +134,41 @@ export const getBudgetTips = async () => {
     return response.data;
   } catch (error) {
     console.error('Error fetching budget tips:', error);
+    
+    // If API is not available, return mock tips
+    if (error.message.includes('Network Error') || error.response?.status === 404) {
+      return {
+        status: 'success',
+        data: {
+          tips: [
+            {
+              id: 1,
+              title: 'Follow the 50/30/20 Rule',
+              content: 'Try to allocate 50% of your income to needs, 30% to wants, and 20% to savings and debt repayment.'
+            },
+            {
+              id: 2,
+              title: 'Track Every Expense',
+              content: 'Record all transactions to understand your spending patterns and identify areas for improvement.'
+            },
+            {
+              id: 3,
+              title: 'Use Cash for Discretionary Spending',
+              content: 'Using cash instead of cards for non-essential purchases can help you be more mindful of your spending.'
+            },
+            {
+              id: 4,
+              title: 'Review Your Budget Regularly',
+              content: 'Check your budget at least once a week to stay on track and make adjustments as needed.'
+            }
+          ]
+        }
+      };
+    }
+    
     if (error.response?.status === 401) {
       throw new Error('Your session has expired. Please login again.');
     }
-    
-    // Return mock tips if the API fails
-    return {
-      status: 'success',
-      data: {
-        tips: [
-          {
-            id: 1,
-            title: 'Reduce Food Expenses',
-            content: 'Try meal planning and cooking at home to reduce your food expenses by up to 30%.'
-          },
-          {
-            id: 2,
-            title: 'Transport Savings',
-            content: 'Consider using public transportation or carpooling to save on fuel costs.'
-          },
-          {
-            id: 3,
-            title: 'Shopping Wisely',
-            content: 'Make a list before shopping and stick to it to avoid impulse purchases.'
-          }
-        ]
-      }
-    };
+    throw error;
   }
 };

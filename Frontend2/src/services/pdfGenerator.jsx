@@ -1,5 +1,5 @@
 import { getTransactions } from './transaction';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { format } from 'date-fns';
 
@@ -369,4 +369,209 @@ export const downloadMonthlyReport = (transactions, month, year) => {
 export const downloadAnnualReport = (transactions, year) => {
   const doc = generateAnnualReport(transactions, year);
   return savePdf(doc, 'Annual', year);
+};
+
+// Format date for PDF
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-IN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+};
+
+// Group transactions by category
+const groupByCategory = (transactions) => {
+  return transactions.reduce((acc, transaction) => {
+    const category = transaction.category;
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(transaction);
+    return acc;
+  }, {});
+};
+
+// Group transactions by month
+const groupByMonth = (transactions) => {
+  return transactions.reduce((acc, transaction) => {
+    const date = new Date(transaction.date);
+    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    if (!acc[monthKey]) {
+      acc[monthKey] = [];
+    }
+    acc[monthKey].push(transaction);
+    return acc;
+  }, {});
+};
+
+// Download monthly statement as PDF
+export const downloadMonthlyStatement = (transactions, month, year) => {
+  const doc = new jsPDF();
+  
+  // Title
+  doc.setFontSize(18);
+  doc.text(`Monthly Financial Statement`, 105, 15, { align: 'center' });
+  doc.setFontSize(14);
+  doc.text(`${month} ${year}`, 105, 23, { align: 'center' });
+  
+  // Date generated
+  doc.setFontSize(10);
+  doc.text(`Generated on: ${formatDate(new Date())}`, 195, 10, { align: 'right' });
+  
+  // Calculate summary
+  const totalExpense = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+  const categoryGroups = groupByCategory(transactions);
+  const categories = Object.keys(categoryGroups);
+  
+  // Summary section
+  doc.setFontSize(14);
+  doc.text('Monthly Summary', 14, 35);
+  
+  doc.setFontSize(12);
+  doc.text(`Total Expense: ${formatCurrency(totalExpense)}`, 14, 45);
+  doc.text(`Total Transactions: ${transactions.length}`, 14, 53);
+  
+  // Category breakdown
+  doc.setFontSize(14);
+  doc.text('Category Breakdown', 14, 65);
+  
+  const categoryBreakdownData = categories.map(category => {
+    const categoryTotal = categoryGroups[category].reduce((sum, tx) => sum + tx.amount, 0);
+    const percentage = (categoryTotal / totalExpense * 100).toFixed(1);
+    return [
+      category,
+      formatCurrency(categoryTotal),
+      `${percentage}%`
+    ];
+  });
+  
+  doc.autoTable({
+    startY: 70,
+    head: [['Category', 'Amount', 'Percentage']],
+    body: categoryBreakdownData,
+  });
+  
+  // Transactions list
+  const yPos = doc.lastAutoTable.finalY + 10;
+  doc.setFontSize(14);
+  doc.text('Transaction Details', 14, yPos);
+  
+  const transactionData = transactions.map(tx => [
+    formatDate(tx.date),
+    tx.category,
+    tx.description || 'No description',
+    tx.paymentMode,
+    formatCurrency(tx.amount)
+  ]);
+  
+  doc.autoTable({
+    startY: yPos + 5,
+    head: [['Date', 'Category', 'Description', 'Payment Mode', 'Amount']],
+    body: transactionData,
+  });
+  
+  // Footer
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(10);
+    doc.text(`Page ${i} of ${pageCount}`, 105, 287, { align: 'center' });
+    doc.text('RupeeRakshak - Your Personal Budget Assistant', 105, 295, { align: 'center' });
+  }
+  
+  // Save the PDF
+  doc.save(`Monthly_Statement_${month}_${year}.pdf`);
+  
+  return doc;
+};
+
+// Download custom date range report
+export const downloadCustomReport = (transactions, startDate, endDate, title = 'Custom Report') => {
+  const doc = new jsPDF();
+  
+  // Title
+  doc.setFontSize(18);
+  doc.text(`${title}`, 105, 15, { align: 'center' });
+  doc.setFontSize(14);
+  doc.text(`${formatDate(startDate)} to ${formatDate(endDate)}`, 105, 23, { align: 'center' });
+  
+  // Date generated
+  doc.setFontSize(10);
+  doc.text(`Generated on: ${formatDate(new Date())}`, 195, 10, { align: 'right' });
+  
+  // Filter transactions for the date range
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  const filteredTransactions = transactions.filter(tx => {
+    const txDate = new Date(tx.date);
+    return txDate >= start && txDate <= end;
+  });
+  
+  // Calculate summary
+  const totalExpense = filteredTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+  const categoryGroups = groupByCategory(filteredTransactions);
+  
+  // Summary section
+  doc.setFontSize(14);
+  doc.text('Summary', 14, 35);
+  
+  doc.setFontSize(12);
+  doc.text(`Total Expense: ${formatCurrency(totalExpense)}`, 14, 45);
+  doc.text(`Total Transactions: ${filteredTransactions.length}`, 14, 53);
+  
+  // Category breakdown
+  doc.setFontSize(14);
+  doc.text('Category Breakdown', 14, 65);
+  
+  const categories = Object.keys(categoryGroups);
+  const categoryData = categories.map(category => {
+    const categoryTotal = categoryGroups[category].reduce((sum, tx) => sum + tx.amount, 0);
+    return [
+      category,
+      formatCurrency(categoryTotal),
+      `${((categoryTotal / totalExpense) * 100).toFixed(1)}%`
+    ];
+  });
+  
+  doc.autoTable({
+    startY: 70,
+    head: [['Category', 'Amount', 'Percentage']],
+    body: categoryData,
+  });
+  
+  // Transactions list
+  const yPos = doc.lastAutoTable.finalY + 10;
+  doc.setFontSize(14);
+  doc.text('Transaction Details', 14, yPos);
+  
+  const transactionData = filteredTransactions.map(tx => [
+    formatDate(tx.date),
+    tx.category,
+    tx.description || 'No description',
+    tx.paymentMode,
+    formatCurrency(tx.amount)
+  ]);
+  
+  doc.autoTable({
+    startY: yPos + 5,
+    head: [['Date', 'Category', 'Description', 'Payment Mode', 'Amount']],
+    body: transactionData,
+  });
+  
+  // Footer
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(10);
+    doc.text(`Page ${i} of ${pageCount}`, 105, 287, { align: 'center' });
+    doc.text('RupeeRakshak - Your Personal Budget Assistant', 105, 295, { align: 'center' });
+  }
+  
+  // Save the PDF
+  doc.save(`Financial_Report_${startDate}_to_${endDate}.pdf`);
+  
+  return doc;
 };

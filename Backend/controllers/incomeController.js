@@ -1,5 +1,5 @@
 const Income = require('../models/Income');
-
+const mongoose = require('mongoose');
 // Add new income
 exports.addIncome = async (req, res) => {
   try {
