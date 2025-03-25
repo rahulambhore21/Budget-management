@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { generateFinancialAdvice, askFinancialQuestion } from '../services/geminiAi';
 import { getTransactions } from '../services/transaction';
@@ -22,10 +22,47 @@ const AiAdvisor = () => {
   });
   const [dataLoading, setDataLoading] = useState(true);
   const { handleLogout } = useContext(AuthContext);
+  const adviceContentRef = useRef(null);
+  const answerContentRef = useRef(null);
+  const [adviceHasScroll, setAdviceHasScroll] = useState(false);
+  const [answerHasScroll, setAnswerHasScroll] = useState(false);
+  const [showCopySuccess, setShowCopySuccess] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamedAnswer, setStreamedAnswer] = useState('');
+  const [fullAnswer, setFullAnswer] = useState('');
+  const [streamingComplete, setStreamingComplete] = useState(false);
+
+  // Sample questions for users to choose from
+  const sampleQuestions = [
+    "How much should I save for retirement?",
+    "What's the 50/30/20 budgeting rule?",
+    "How can I reduce my monthly expenses?",
+    "What's the difference between good debt and bad debt?",
+    "How do I start investing with a small amount of money?",
+    "What should I do with unexpected income?",
+    "How can I improve my credit score?",
+    "Should I pay off debt or invest first?"
+  ];
 
   useEffect(() => {
     fetchFinancialData();
   }, []);
+
+  useEffect(() => {
+    // Check if content has scroll after content is updated
+    if (adviceContentRef.current) {
+      const hasScroll = adviceContentRef.current.scrollHeight > adviceContentRef.current.clientHeight;
+      setAdviceHasScroll(hasScroll);
+    }
+  }, [advice]);
+
+  useEffect(() => {
+    // Check if answer content has scroll
+    if (answerContentRef.current) {
+      const hasScroll = answerContentRef.current.scrollHeight > answerContentRef.current.clientHeight;
+      setAnswerHasScroll(hasScroll);
+    }
+  }, [streamedAnswer, streamingComplete]);
 
   const fetchFinancialData = async () => {
     setDataLoading(true);
@@ -91,6 +128,7 @@ const AiAdvisor = () => {
   const handleGetAdvice = async () => {
     setLoading(true);
     setAdvice('');
+    setStreamedAnswer('');
     
     try {
       if (financialData.transactions.length === 0) {
@@ -99,9 +137,11 @@ const AiAdvisor = () => {
         return;
       }
       
+      toast.success('Analyzing your financial data...', { duration: 2000 });
       const result = await generateFinancialAdvice(financialData);
       
       if (result.success) {
+        toast.success('Analysis complete!', { icon: '✓' });
         setAdvice(result.advice);
       } else {
         toast.error('Failed to generate financial advice');
@@ -125,24 +165,65 @@ const AiAdvisor = () => {
     }
     
     setAnswerLoading(true);
-    setAnswer('');
+    setStreamedAnswer('');
+    setFullAnswer('');
+    setStreamingComplete(false);
     
     try {
       const result = await askFinancialQuestion(question);
       
       if (result.success) {
-        setAnswer(result.answer);
+        setFullAnswer(result.answer);
+        // Start streaming after getting the answer
+        setAnswerLoading(false);
+        streamAnswer(result.answer);
       } else {
         toast.error('Failed to get an answer');
-        setAnswer(result.answer || 'Failed to answer your question. Please try again later.');
+        setFullAnswer(result.answer || 'Failed to answer your question. Please try again later.');
+        setStreamedAnswer(result.answer || 'Failed to answer your question. Please try again later.');
+        setAnswerLoading(false);
+        setStreamingComplete(true);
       }
     } catch (error) {
       console.error('Error in AI question answering:', error);
       toast.error('An error occurred while answering your question');
-      setAnswer('I encountered an error while processing your question. Please try again later.');
-    } finally {
+      const errorMessage = 'I encountered an error while processing your question. Please try again later.';
+      setFullAnswer(errorMessage);
+      setStreamedAnswer(errorMessage);
       setAnswerLoading(false);
+      setStreamingComplete(true);
     }
+  };
+
+  // Simulate streaming effect
+  const streamAnswer = (fullText, speed = 30) => {
+    setIsStreaming(true);
+    setStreamingComplete(false);
+    setStreamedAnswer('');
+    
+    const words = fullText.split(' ');
+    let currentIndex = 0;
+    
+    const streamInterval = setInterval(() => {
+      if (currentIndex < words.length) {
+        // Add 1-3 words at a time to simulate natural typing
+        const wordsToAdd = Math.floor(Math.random() * 3) + 1;
+        const nextChunk = words.slice(currentIndex, currentIndex + wordsToAdd).join(' ') + ' ';
+        setStreamedAnswer(prev => prev + nextChunk);
+        currentIndex += wordsToAdd;
+        
+        // Auto-scroll to bottom as new content appears
+        if (answerContentRef.current) {
+          answerContentRef.current.scrollTop = answerContentRef.current.scrollHeight;
+        }
+      } else {
+        clearInterval(streamInterval);
+        setIsStreaming(false);
+        setStreamingComplete(true);
+      }
+    }, speed);
+    
+    return () => clearInterval(streamInterval);
   };
 
   // Format advice text with markdown-like syntax
@@ -172,7 +253,38 @@ const AiAdvisor = () => {
     // Handle line breaks
     formattedText = formattedText.replace(/\n\n/g, '<br>');
     
+    // Highlight important information
+    formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    formattedText = formattedText.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
     return formattedText;
+  };
+
+  const handleCopyContent = (text, type) => {
+    if (!text) return;
+    
+    // Get the complete answer if it's still streaming
+    const textToCopy = type === 'Answer' ? fullAnswer : text;
+    
+    // Strip HTML tags to get plain text
+    const plainText = textToCopy.replace(/<[^>]*>/g, '');
+    
+    navigator.clipboard.writeText(plainText).then(
+      () => {
+        setShowCopySuccess(true);
+        setTimeout(() => setShowCopySuccess(false), 2000);
+        toast.success(`${type} copied to clipboard!`);
+      },
+      () => {
+        toast.error('Failed to copy text');
+      }
+    );
+  };
+
+  const handleSampleQuestionClick = (question) => {
+    setQuestion(question);
+    // Focus the input field after setting the question
+    document.getElementById('question').focus();
   };
 
   return (
@@ -191,25 +303,33 @@ const AiAdvisor = () => {
               onClick={handleGetAdvice}
               disabled={loading || dataLoading}
             >
-              {loading ? 'Analyzing your data...' : 'Get Personalized Advice'}
+              {loading ? (
+                <>
+                  <span className="spinner-small"></span>
+                  Analyzing...
+                </>
+              ) : 'Get Personalized Advice'}
             </button>
           </div>
           
           <div className="data-status">
             {dataLoading ? (
-              <div className="loading-status">Loading your financial data...</div>
+              <div className="loading-status">
+                <div className="spinner"></div>
+                <span>Loading your financial data...</span>
+              </div>
             ) : (
               <div className="data-summary">
                 <div className="data-item">
-                  <span className="data-label">Transactions:</span>
+                  <span className="data-label">Transactions</span>
                   <span className="data-value">{financialData.transactions.length}</span>
                 </div>
                 <div className="data-item">
-                  <span className="data-label">Budget Categories:</span>
+                  <span className="data-label">Budget Categories</span>
                   <span className="data-value">{financialData.budget.length}</span>
                 </div>
                 <div className="data-item">
-                  <span className="data-label">Monthly Income:</span>
+                  <span className="data-label">Monthly Income</span>
                   <span className="data-value">
                     {new Intl.NumberFormat('en-IN', {
                       style: 'currency',
@@ -219,14 +339,14 @@ const AiAdvisor = () => {
                   </span>
                 </div>
                 <div className="data-item">
-                  <span className="data-label">Savings Goals:</span>
+                  <span className="data-label">Savings Goals</span>
                   <span className="data-value">{financialData.savingsGoals.length}</span>
                 </div>
               </div>
             )}
           </div>
           
-          <div className="advice-container">
+          <div className={`advice-container ${adviceHasScroll ? 'has-scroll' : ''}`}>
             {loading ? (
               <div className="advice-loading">
                 <div className="advice-loading-animation">
@@ -236,10 +356,25 @@ const AiAdvisor = () => {
                 <p className="loading-subtext">This may take a few moments as the AI reviews your transactions and patterns</p>
               </div>
             ) : advice ? (
-              <div 
-                className="advice-content"
-                dangerouslySetInnerHTML={{ __html: formatAdvice(advice) }}
-              />
+              <>
+                <div 
+                  className="advice-content"
+                  ref={adviceContentRef}
+                  dangerouslySetInnerHTML={{ __html: formatAdvice(advice) }}
+                />
+                <button 
+                  className="copy-btn" 
+                  onClick={() => handleCopyContent(advice, 'Advice')}
+                  title="Copy advice to clipboard"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+                <div className={`copy-success ${showCopySuccess ? 'show' : ''}`}>Copied!</div>
+                {adviceHasScroll && <div className="scroll-indicator"></div>}
+              </>
             ) : (
               <div className="no-advice">
                 <p>Click "Get Personalized Advice" to receive AI-generated financial guidance based on your transaction history, budget, and savings goals.</p>
@@ -266,26 +401,70 @@ const AiAdvisor = () => {
                 required
               />
             </div>
+            
+            <div className="sample-questions-container">
+              <h3 className="sample-questions-heading">Try one of these questions:</h3>
+              <div className="sample-questions-list">
+                {sampleQuestions.map((q, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    className="sample-question-btn"
+                    onClick={() => handleSampleQuestionClick(q)}
+                    disabled={answerLoading}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
             <button 
               type="submit" 
               className="ask-btn"
               disabled={answerLoading || !question.trim()}
             >
-              {answerLoading ? 'Getting Answer...' : 'Ask Question'}
+              {answerLoading ? (
+                <>
+                  <span className="spinner-small"></span>
+                  Getting Answer...
+                </>
+              ) : 'Ask Question'}
             </button>
           </form>
           
-          <div className="answer-container">
+          <div className={`answer-container ${answerHasScroll ? 'has-scroll' : ''}`}>
             {answerLoading ? (
               <div className="answer-loading">
                 <div className="spinner"></div>
                 <p>Finding the best answer to your question...</p>
               </div>
-            ) : answer ? (
-              <div 
-                className="answer-content"
-                dangerouslySetInnerHTML={{ __html: formatAdvice(answer) }}
-              />
+            ) : streamedAnswer ? (
+              <>
+                <div 
+                  className={`answer-content ${isStreaming ? 'is-streaming' : ''}`}
+                  ref={answerContentRef}
+                  dangerouslySetInnerHTML={{ __html: formatAdvice(streamedAnswer) }}
+                />
+                <button 
+                  className="copy-btn" 
+                  onClick={() => handleCopyContent(streamedAnswer, 'Answer')}
+                  title="Copy answer to clipboard"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+                {!isStreaming && answerHasScroll && <div className="scroll-indicator"></div>}
+                {isStreaming && (
+                  <div className="streaming-indicator">
+                    <span className="dot"></span>
+                    <span className="dot"></span>
+                    <span className="dot"></span>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="no-answer">
                 <p>Your answer will appear here after you ask a question.</p>
