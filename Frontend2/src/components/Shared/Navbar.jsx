@@ -41,6 +41,7 @@ const Navbar = () => {
           <Link to="/budget" className={`nav-link ${isActive('/budget') ? 'active' : ''}`}>Budget</Link>
           <Link to="/insights" className={`nav-link ${isActive('/insights') ? 'active' : ''}`}>Insights</Link>
           <Link to="/reports" className={`nav-link ${isActive('/reports') ? 'active' : ''}`}>Reports</Link>
+          <Link to="/ai-advisor" className={`nav-link ${isActive('/ai-advisor') ? 'active' : ''}`}>AI Advisor</Link>
         </div>
         
         <div className="nav-menu">
@@ -66,6 +67,7 @@ const Navbar = () => {
                   <Link to="/budget" className="dropdown-item" onClick={closeDropdown}>Budget Planner</Link>
                   <Link to="/insights" className="dropdown-item" onClick={closeDropdown}>Financial Insights</Link>
                   <Link to="/reports" className="dropdown-item" onClick={closeDropdown}>Reports</Link>
+                  <Link to="/ai-advisor" className="dropdown-item" onClick={closeDropdown}>AI Advisor</Link>
                   <button className="dropdown-item logout" onClick={() => {
                     closeDropdown();
                     handleLogout();
