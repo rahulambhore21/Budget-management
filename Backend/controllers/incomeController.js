@@ -195,7 +195,7 @@ exports.getIncomeStats = async (req, res) => {
     const monthlyIncome = await Income.aggregate([
       {
         $match: {
-          userId: mongoose.Types.ObjectId(req.user.id),
+          userId: new mongoose.Types.ObjectId(req.user.id),
           date: { $gte: oneYearAgo }
         }
       },
@@ -218,7 +218,7 @@ exports.getIncomeStats = async (req, res) => {
     const incomeBySource = await Income.aggregate([
       {
         $match: {
-          userId: mongoose.Types.ObjectId(req.user.id),
+          userId: new mongoose.Types.ObjectId(req.user.id),
           date: { $gte: oneYearAgo }
         }
       },
@@ -241,7 +241,7 @@ exports.getIncomeStats = async (req, res) => {
     const currentMonthTotal = await Income.aggregate([
       {
         $match: {
-          userId: mongoose.Types.ObjectId(req.user.id),
+          userId: new mongoose.Types.ObjectId(req.user.id),
           date: { 
             $gte: currentMonth,
             $lt: nextMonth
@@ -264,7 +264,7 @@ exports.getIncomeStats = async (req, res) => {
     const currentYearTotal = await Income.aggregate([
       {
         $match: {
-          userId: mongoose.Types.ObjectId(req.user.id),
+          userId: new mongoose.Types.ObjectId(req.user.id),
           date: { 
             $gte: currentYear,
             $lt: nextYear
