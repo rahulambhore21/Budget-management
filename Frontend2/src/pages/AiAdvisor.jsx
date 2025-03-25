@@ -31,6 +31,12 @@ const AiAdvisor = () => {
   const [streamedAnswer, setStreamedAnswer] = useState('');
   const [fullAnswer, setFullAnswer] = useState('');
   const [streamingComplete, setStreamingComplete] = useState(false);
+  
+  // New state variables for advice streaming
+  const [isAdviceStreaming, setIsAdviceStreaming] = useState(false);
+  const [streamedAdvice, setStreamedAdvice] = useState('');
+  const [fullAdvice, setFullAdvice] = useState('');
+  const [adviceStreamingComplete, setAdviceStreamingComplete] = useState(false);
 
   // Sample questions for users to choose from
   const sampleQuestions = [
@@ -54,7 +60,7 @@ const AiAdvisor = () => {
       const hasScroll = adviceContentRef.current.scrollHeight > adviceContentRef.current.clientHeight;
       setAdviceHasScroll(hasScroll);
     }
-  }, [advice]);
+  }, [streamedAdvice, adviceStreamingComplete]);
 
   useEffect(() => {
     // Check if answer content has scroll
@@ -127,33 +133,76 @@ const AiAdvisor = () => {
 
   const handleGetAdvice = async () => {
     setLoading(true);
-    setAdvice('');
-    setStreamedAnswer('');
+    setStreamedAdvice('');
+    setFullAdvice('');
+    setAdviceStreamingComplete(false);
     
     try {
       if (financialData.transactions.length === 0) {
         toast.error('You need to add some transactions before getting personalized advice');
-        setAdvice('Please add some transactions to receive personalized financial advice.');
+        setStreamedAdvice('Please add some transactions to receive personalized financial advice.');
+        setFullAdvice('Please add some transactions to receive personalized financial advice.');
+        setAdviceStreamingComplete(true);
         return;
       }
       
       toast.success('Analyzing your financial data...', { duration: 2000 });
       const result = await generateFinancialAdvice(financialData);
-      
-      if (result.success) {
+      console.log(result);
+      if (result.status == "success") {
         toast.success('Analysis complete!', { icon: '✓' });
-        setAdvice(result.advice);
+        setFullAdvice(result.data.advice);
+        // Start streaming the advice
+        setLoading(false);
+        streamAdvice(result.data.advice);
       } else {
         toast.error('Failed to generate financial advice');
-        setAdvice(result.advice || 'Failed to generate advice. Please try again later.');
+        const errorMsg = result.advice || 'Failed to generate advice. Please try again later.';
+        setFullAdvice(errorMsg);
+        setStreamedAdvice(errorMsg);
+        setAdviceStreamingComplete(true);
+        setLoading(false);
       }
     } catch (error) {
       console.error('Error in AI advice generation:', error);
       toast.error('An error occurred while generating advice');
-      setAdvice('I encountered an error while analyzing your financial data. Please try again later.');
-    } finally {
+      const errorMsg = 'I encountered an error while analyzing your financial data. Please try again later.';
+      setFullAdvice(errorMsg);
+      setStreamedAdvice(errorMsg);
+      setAdviceStreamingComplete(true);
       setLoading(false);
     }
+  };
+
+  // New function to stream advice chunks
+  const streamAdvice = (fullText, speed = 30) => {
+    setIsAdviceStreaming(true);
+    setAdviceStreamingComplete(false);
+    setStreamedAdvice('');
+    
+    const words = fullText.split(' ');
+    let currentIndex = 0;
+    
+    const streamInterval = setInterval(() => {
+      if (currentIndex < words.length) {
+        // Add 1-3 words at a time to simulate natural typing
+        const wordsToAdd = Math.floor(Math.random() * 3) + 1;
+        const nextChunk = words.slice(currentIndex, currentIndex + wordsToAdd).join(' ') + ' ';
+        setStreamedAdvice(prev => prev + nextChunk);
+        currentIndex += wordsToAdd;
+        
+        // Auto-scroll to bottom as new content appears
+        if (adviceContentRef.current) {
+          adviceContentRef.current.scrollTop = adviceContentRef.current.scrollHeight;
+        }
+      } else {
+        clearInterval(streamInterval);
+        setIsAdviceStreaming(false);
+        setAdviceStreamingComplete(true);
+      }
+    }, speed);
+    
+    return () => clearInterval(streamInterval);
   };
 
   const handleAskQuestion = async (e) => {
@@ -263,8 +312,12 @@ const AiAdvisor = () => {
   const handleCopyContent = (text, type) => {
     if (!text) return;
     
-    // Get the complete answer if it's still streaming
-    const textToCopy = type === 'Answer' ? fullAnswer : text;
+    // Get the complete text if it's still streaming
+    const textToCopy = type === 'Answer' 
+      ? fullAnswer 
+      : type === 'Advice' 
+        ? fullAdvice 
+        : text;
     
     // Strip HTML tags to get plain text
     const plainText = textToCopy.replace(/<[^>]*>/g, '');
@@ -301,7 +354,7 @@ const AiAdvisor = () => {
             <button 
               className="get-advice-btn"
               onClick={handleGetAdvice}
-              disabled={loading || dataLoading}
+              disabled={loading || dataLoading || isAdviceStreaming}
             >
               {loading ? (
                 <>
@@ -355,16 +408,16 @@ const AiAdvisor = () => {
                 <p>Analyzing your financial data and generating personalized advice...</p>
                 <p className="loading-subtext">This may take a few moments as the AI reviews your transactions and patterns</p>
               </div>
-            ) : advice ? (
+            ) : streamedAdvice ? (
               <>
                 <div 
-                  className="advice-content"
+                  className={`advice-content ${isAdviceStreaming ? 'is-streaming' : ''}`}
                   ref={adviceContentRef}
-                  dangerouslySetInnerHTML={{ __html: formatAdvice(advice) }}
+                  dangerouslySetInnerHTML={{ __html: formatAdvice(streamedAdvice) }}
                 />
                 <button 
                   className="copy-btn" 
-                  onClick={() => handleCopyContent(advice, 'Advice')}
+                  onClick={() => handleCopyContent(streamedAdvice, 'Advice')}
                   title="Copy advice to clipboard"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -373,7 +426,14 @@ const AiAdvisor = () => {
                   </svg>
                 </button>
                 <div className={`copy-success ${showCopySuccess ? 'show' : ''}`}>Copied!</div>
-                {adviceHasScroll && <div className="scroll-indicator"></div>}
+                {!isAdviceStreaming && adviceHasScroll && <div className="scroll-indicator"></div>}
+                {isAdviceStreaming && (
+                  <div className="streaming-indicator">
+                    <span className="dot"></span>
+                    <span className="dot"></span>
+                    <span className="dot"></span>
+                  </div>
+                )}
               </>
             ) : (
               <div className="no-advice">
